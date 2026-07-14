@@ -5,7 +5,6 @@ import { Pool } from "@neondatabase/serverless";
 const globalForPrisma = globalThis as unknown as { 
   prisma: PrismaClient | undefined;
   isMock: boolean | undefined;
-  connectionStringUsed: string | undefined;
 };
 
 // Configure WebSocket constructor for Neon serverless pool transactions in Node.js server environment
@@ -47,42 +46,27 @@ const initPrisma = (connectionString: string) => {
           execute: async () => 0,
         }),
       } as any
-    });
+    } as any);
   }
   
   globalForPrisma.isMock = false;
   
-  // Setup Neon database connection pool using parsed connection options
-  // to avoid standard pg-connection-string bundler parser failures in Turbopack.
-  let poolOptions: any = {};
-  try {
-    const parsed = new URL(connectionString);
-    poolOptions = {
-      host: parsed.hostname,
-      port: parsed.port ? Number(parsed.port) : 5432,
-      user: decodeURIComponent(parsed.username),
-      password: decodeURIComponent(parsed.password),
-      database: decodeURIComponent(parsed.pathname.substring(1)),
-      ssl: true,
-    };
-  } catch (err) {
-    console.error("Failed to parse connectionString, falling back to string pass:", err);
-    poolOptions = { connectionString };
-  }
-
-  const pool = new Pool(poolOptions);
+  // Setup Neon database connection pool
+  const pool = new Pool({ connectionString });
   
   // Instantiate the Neon driver adapter for Prisma 7 compatibility
   const adapter = new PrismaNeon(pool as any);
   
-  return new PrismaClient({ adapter });
+  return new PrismaClient({ adapter } as any);
 };
 
-// Re-initialize if there is no cached client, or if the cached connection string has changed.
-const currentConnectionString = getEnvConnectionString();
-if (!globalForPrisma.prisma || globalForPrisma.connectionStringUsed !== currentConnectionString) {
-  globalForPrisma.prisma = initPrisma(currentConnectionString);
-  globalForPrisma.connectionStringUsed = currentConnectionString;
-}
-
-export const prisma = globalForPrisma.prisma;
+// Export a Proxy that lazily initializes the Prisma Client on first database access
+// at runtime, avoiding any pre-evaluation/instantiation during the Next.js build phase.
+export const prisma = new Proxy({} as PrismaClient, {
+  get(target, prop, receiver) {
+    if (!globalForPrisma.prisma) {
+      globalForPrisma.prisma = initPrisma(getEnvConnectionString());
+    }
+    return Reflect.get(globalForPrisma.prisma, prop, receiver);
+  }
+});
