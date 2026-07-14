@@ -14,7 +14,7 @@ export async function DELETE(
     const { id } = await params;
 
     // Run delete and balance revert inside database transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const transaction = await tx.transaction.findFirst({
         where: { id, userId },
       });

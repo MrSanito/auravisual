@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const hashedPassword = await hashPassword(password);
 
     // Create user and seed default accounts and categories in a single transaction
-    const user = await prisma.$transaction(async (tx) => {
+    const user = await prisma.$transaction(async (tx: any) => {
       const newUser = await tx.user.create({
         data: {
           name,

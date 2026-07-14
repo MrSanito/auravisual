@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     const consolidatedDescription = `${party || "Unknown"} - ${notes || ""}`.trim() + (mode ? ` (${mode})` : "");
 
     // Process creation and balance adjustment in a secure transaction
-    const newTransaction = await prisma.$transaction(async (tx) => {
+    const newTransaction = await prisma.$transaction(async (tx: any) => {
       // 1. Resolve Account (create if not found)
       let account = await tx.account.findFirst({
         where: { userId, AccountName: accountName },

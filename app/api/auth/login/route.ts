@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     if (!user && email === "admin@auravisuals.com" && password === "admin") {
       const hashedPassword = await hashPassword("admin");
       
-      user = await prisma.$transaction(async (tx) => {
+      user = await prisma.$transaction(async (tx: any) => {
         const newUser = await tx.user.create({
           data: {
             name: "Admin User",
