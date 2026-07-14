@@ -1,6 +1,5 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
-import { Pool } from "@neondatabase/serverless";
 
 const globalForPrisma = globalThis as unknown as { 
   prisma: PrismaClient | undefined;
@@ -51,11 +50,8 @@ const initPrisma = (connectionString: string) => {
   
   globalForPrisma.isMock = false;
   
-  // Setup Neon database connection pool
-  const pool = new Pool({ connectionString });
-  
-  // Instantiate the Neon driver adapter for Prisma 7 compatibility
-  const adapter = new PrismaNeon(pool as any);
+  // Instantiate the Neon driver adapter directly with the connectionString option
+  const adapter = new PrismaNeon({ connectionString });
   
   return new PrismaClient({ adapter } as any);
 };
