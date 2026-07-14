@@ -15,10 +15,20 @@ if (typeof window === "undefined") {
 }
 
 const initPrisma = () => {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = 
+    process.env.DATABASE_URL || 
+    process.env.DATABASEURL || 
+    process.env.POSTGRES_URL;
+    
   console.log("DEBUG initPrisma connectionString =", connectionString);
   
-  if (!connectionString) {
+  const isInvalid = 
+    !connectionString || 
+    connectionString === "undefined" || 
+    connectionString === "null" || 
+    !connectionString.trim();
+  
+  if (isInvalid) {
     globalForPrisma.isMock = true;
     return new PrismaClient({
       adapter: {
@@ -46,8 +56,9 @@ const initPrisma = () => {
 };
 
 // Re-initialize if there is no cached client, or if the cached client is a mock
-// but we now have a valid DATABASE_URL environment variable loaded at runtime.
-if (!globalForPrisma.prisma || (globalForPrisma.isMock && process.env.DATABASE_URL)) {
+// but we now have a valid environment variable loaded at runtime.
+const hasRealEnv = process.env.DATABASE_URL || process.env.DATABASEURL || process.env.POSTGRES_URL;
+if (!globalForPrisma.prisma || (globalForPrisma.isMock && hasRealEnv)) {
   globalForPrisma.prisma = initPrisma();
 }
 
