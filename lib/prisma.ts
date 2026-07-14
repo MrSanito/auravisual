@@ -52,8 +52,25 @@ const initPrisma = (connectionString: string) => {
   
   globalForPrisma.isMock = false;
   
-  // Setup Neon database connection pool
-  const pool = new Pool({ connectionString });
+  // Setup Neon database connection pool using parsed connection options
+  // to avoid standard pg-connection-string bundler parser failures in Turbopack.
+  let poolOptions: any = {};
+  try {
+    const parsed = new URL(connectionString);
+    poolOptions = {
+      host: parsed.hostname,
+      port: parsed.port ? Number(parsed.port) : 5432,
+      user: decodeURIComponent(parsed.username),
+      password: decodeURIComponent(parsed.password),
+      database: decodeURIComponent(parsed.pathname.substring(1)),
+      ssl: true,
+    };
+  } catch (err) {
+    console.error("Failed to parse connectionString, falling back to string pass:", err);
+    poolOptions = { connectionString };
+  }
+
+  const pool = new Pool(poolOptions);
   
   // Instantiate the Neon driver adapter for Prisma 7 compatibility
   const adapter = new PrismaNeon(pool as any);
