@@ -9,7 +9,7 @@ import { ReportsPage } from "@/app/dashboard/components/ReportsPage";
 import { BudgetPlannerPage } from "@/app/dashboard/components/BudgetPlannerPage";
 import { CategoryAuditPage } from "@/app/dashboard/components/CategoryAuditPage";
 import { Transaction } from "@/app/dashboard/data/mockData";
-import { Loader2 } from "lucide-react";
+import { Loader2, Menu, TrendingUp } from "lucide-react";
 
 // Mappings helper to convert database format back to frontend Transaction representation
 function mapDbTransactionToFrontend(dbTx: any): Transaction {
@@ -62,6 +62,7 @@ export default function FinTrackerDashboard() {
   const router = useRouter();
 
   const [page, setPage] = useState("transactions");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [expenses, setExpenses] = useState<Transaction[]>([]);
   const [incomes, setIncomes] = useState<Transaction[]>([]);
   const [dbAccounts, setDbAccounts] = useState<any[]>([]);
@@ -134,8 +135,30 @@ export default function FinTrackerDashboard() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-gray-50 font-sans text-gray-900">
-      <Sidebar page={page} onNavigate={setPage} />
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-gray-50 font-sans text-gray-900 md:flex-row">
+      {/* Mobile Top Header */}
+      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shrink-0 md:hidden">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm shadow-blue-500/30">
+            <TrendingUp size={16} strokeWidth={2.5} />
+          </span>
+          <span className="text-base font-bold text-gray-900">Fin Tracker</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsSidebarOpen(true)}
+          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 focus:outline-none"
+        >
+          <Menu size={20} />
+        </button>
+      </header>
+
+      <Sidebar 
+        page={page} 
+        onNavigate={setPage} 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+      />
       <div className="flex-1 overflow-y-auto">
         {page === "transactions" && (
           <TransactionsPage

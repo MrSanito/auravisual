@@ -139,7 +139,7 @@ export function ReportsPage({ expenses, incomes, dbAccounts = [] }: ReportsPageP
   }, [safePage, totalPages]);
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <TopBar title="Reports" subtitle="Analyze your financial data with detailed reports and insights." />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-4">

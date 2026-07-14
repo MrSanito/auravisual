@@ -313,7 +313,7 @@ export function TransactionsPage({
   const visibleIncomes = showAllIncomes ? incomes : incomes.slice(0, 6);
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <TopBar title="Transactions" subtitle="Record your income and expenses in one place." />
 
       {/* Add forms */}

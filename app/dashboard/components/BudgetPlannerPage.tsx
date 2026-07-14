@@ -89,7 +89,7 @@ export function BudgetPlannerPage({ expenses, incomes, dbAccounts = [], onNaviga
   const thCls = "px-2 py-2.5 font-medium first:pl-5";
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <TopBar title="Budget Planner" subtitle="Overview of your budget, income and expenses" showFilters={false} />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">

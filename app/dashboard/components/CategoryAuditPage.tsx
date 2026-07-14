@@ -236,7 +236,7 @@ export function CategoryAuditPage({
     "rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100";
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <TopBar
         title="Category Audit"
         subtitle="Manage all income and expense categories used in your transactions."
