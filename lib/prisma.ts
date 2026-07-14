@@ -5,6 +5,7 @@ import { Pool } from "@neondatabase/serverless";
 const globalForPrisma = globalThis as unknown as { 
   prisma: PrismaClient | undefined;
   isMock: boolean | undefined;
+  connectionStringUsed: string | undefined;
 };
 
 // Configure WebSocket constructor for Neon serverless pool transactions in Node.js server environment
@@ -14,21 +15,26 @@ if (typeof window === "undefined") {
   neonConfig.webSocketConstructor = ws;
 }
 
-const initPrisma = () => {
-  const connectionString = 
+const getEnvConnectionString = () => {
+  const str = 
     process.env.DATABASE_URL || 
     process.env.DATABASEURL || 
-    process.env.POSTGRES_URL;
+    process.env.POSTGRES_URL || 
+    "";
     
-  console.log("DEBUG initPrisma connectionString =", connectionString);
-  
   const isInvalid = 
-    !connectionString || 
-    connectionString === "undefined" || 
-    connectionString === "null" || 
-    !connectionString.trim();
+    !str || 
+    str === "undefined" || 
+    str === "null" || 
+    !str.trim();
+    
+  return isInvalid ? "" : str;
+};
+
+const initPrisma = (connectionString: string) => {
+  console.log("DEBUG initPrisma connectionStringLength =", connectionString.length);
   
-  if (isInvalid) {
+  if (!connectionString) {
     globalForPrisma.isMock = true;
     return new PrismaClient({
       adapter: {
@@ -55,11 +61,11 @@ const initPrisma = () => {
   return new PrismaClient({ adapter });
 };
 
-// Re-initialize if there is no cached client, or if the cached client is a mock
-// but we now have a valid environment variable loaded at runtime.
-const hasRealEnv = process.env.DATABASE_URL || process.env.DATABASEURL || process.env.POSTGRES_URL;
-if (!globalForPrisma.prisma || (globalForPrisma.isMock && hasRealEnv)) {
-  globalForPrisma.prisma = initPrisma();
+// Re-initialize if there is no cached client, or if the cached connection string has changed.
+const currentConnectionString = getEnvConnectionString();
+if (!globalForPrisma.prisma || globalForPrisma.connectionStringUsed !== currentConnectionString) {
+  globalForPrisma.prisma = initPrisma(currentConnectionString);
+  globalForPrisma.connectionStringUsed = currentConnectionString;
 }
 
 export const prisma = globalForPrisma.prisma;
