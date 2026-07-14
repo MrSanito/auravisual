@@ -182,6 +182,17 @@ export async function POST(request: Request) {
         stack: error.stack,
         envKeys: Object.keys(process.env).filter(k => k.toLowerCase().includes("database") || k.toLowerCase().includes("postgres") || k.toLowerCase().includes("url")),
         isPrismaMock: (globalThis as any).isMock || false,
+        dbUrlValue: (() => {
+          const str = process.env.DATABASE_URL || process.env.DATABASEURL || process.env.POSTGRES_URL;
+          if (!str) return "not-set";
+          try {
+            const url = new URL(str);
+            url.password = "****";
+            return url.toString();
+          } catch (e) {
+            return `invalid-url-format: ${str.substring(0, 12)}... [len: ${str.length}]`;
+          }
+        })()
       },
       { status: 500 }
     );
