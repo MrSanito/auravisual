@@ -177,7 +177,12 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error("Login error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to login" },
+      { 
+        error: error.message || "Failed to login",
+        stack: error.stack,
+        envKeys: Object.keys(process.env).filter(k => k.toLowerCase().includes("database") || k.toLowerCase().includes("postgres") || k.toLowerCase().includes("url")),
+        isPrismaMock: (globalThis as any).isMock || false,
+      },
       { status: 500 }
     );
   }
