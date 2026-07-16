@@ -101,6 +101,7 @@ export function TransactionsPage({
     notes: "",
   });
   const [txToDelete, setTxToDelete] = useState<string | number | null>(null);
+  const [isDeletingTx, setIsDeletingTx] = useState(false);
 
   // Helper to parse dates like "14 May 2025" to "2025-05-14"
   const parseDateToInputFormat = (dateStr: string): string => {
@@ -526,6 +527,7 @@ export function TransactionsPage({
 
   const handleDelete = async (id: string | number) => {
     if (!user) return;
+    setIsDeletingTx(true);
     try {
       const response = await fetch(`/api/transactions/${id}`, {
         method: "DELETE",
@@ -536,6 +538,7 @@ export function TransactionsPage({
 
       if (response.ok) {
         toast.success("Transaction deleted successfully!");
+        setTxToDelete(null);
         if (onRefresh) onRefresh();
       } else {
         const err = await response.json();
@@ -543,6 +546,9 @@ export function TransactionsPage({
       }
     } catch (err) {
       console.error("Delete transaction error:", err);
+      toast.error("Failed to connect to the server");
+    } finally {
+      setIsDeletingTx(false);
     }
   };
 
@@ -1260,20 +1266,26 @@ export function TransactionsPage({
             <div className="flex items-center justify-end gap-2.5 font-sans">
               <button
                 type="button"
+                disabled={isDeletingTx}
                 onClick={() => setTxToDelete(null)}
-                className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-500 hover:bg-gray-100 transition"
+                className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-500 hover:bg-gray-100 transition disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  handleDelete(txToDelete);
-                  setTxToDelete(null);
-                }}
-                className="rounded-xl bg-red-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700"
+                disabled={isDeletingTx}
+                onClick={() => handleDelete(txToDelete)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50"
               >
-                Confirm Delete
+                {isDeletingTx ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Confirm Delete"
+                )}
               </button>
             </div>
           </div>

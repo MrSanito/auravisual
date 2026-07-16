@@ -54,6 +54,7 @@ export function CategoryAuditPage({
   const [editingCategory, setEditingCategory] = useState<CategoryAuditItem | null>(null);
   const [editName, setEditName] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<CategoryAuditItem | null>(null);
 
@@ -138,6 +139,7 @@ export function CategoryAuditPage({
     if (!newCat.name.trim() || !user) return;
     const type = newCat.kind === "Expense" ? "EXPENSE" : "INCOME";
 
+    setIsAdding(true);
     try {
       const response = await fetch("/api/categories", {
         method: "POST",
@@ -163,6 +165,8 @@ export function CategoryAuditPage({
     } catch (err) {
       console.error("Create category error:", err);
       toast.error("Failed to connect to the server");
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -444,16 +448,25 @@ export function CategoryAuditPage({
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
+                  disabled={isAdding}
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 rounded-lg border border-gray-200 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                  className="flex-1 rounded-lg border border-gray-200 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  disabled={isAdding}
+                  className="flex-1 rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
-                  Add Category
+                  {isAdding ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    "Add Category"
+                  )}
                 </button>
               </div>
             </form>
