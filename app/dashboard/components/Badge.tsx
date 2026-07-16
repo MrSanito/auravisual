@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { MoreVertical, Trash2, Edit, LucideIcon } from "lucide-react";
 import { CategoryMetaItem } from "../data/mockData";
 
@@ -50,19 +50,32 @@ export function CategoryIcon({ meta }: { meta: CategoryMetaItem | { icon: Lucide
 
 export function RowMenu({ onDelete, onEdit }: { onDelete: () => void; onEdit?: () => void }) {
   const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleToggle = () => {
+    if (!open && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      // If there is less than 120px of space below the row, open upwards
+      setOpenUp(spaceBelow < 120);
+    }
+    setOpen((o) => !o);
+  };
+
   return (
-    <div className="relative">
+    <div ref={containerRef} className={`relative ${open ? "z-50" : ""}`}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={handleToggle}
         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
       >
         <MoreVertical size={16} />
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 w-32 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className={`absolute right-0 z-50 w-32 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg ${openUp ? "bottom-full mb-1" : "mt-1"}`}>
             {onEdit && (
               <button
                 type="button"
