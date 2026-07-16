@@ -1,18 +1,11 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaNeon } from "@prisma/adapter-neon";
-import { Pool } from "@neondatabase/serverless";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
 const globalForPrisma = globalThis as unknown as { 
   prisma: PrismaClient | undefined;
   isMock: boolean | undefined;
 };
-
-// Configure WebSocket constructor for Neon serverless pool transactions in Node.js server environment
-if (typeof window === "undefined") {
-  const ws = require("ws");
-  const { neonConfig } = require("@neondatabase/serverless");
-  neonConfig.webSocketConstructor = ws;
-}
 
 const getEnvConnectionString = () => {
   const str = 
@@ -57,7 +50,7 @@ const initPrisma = (connectionString: string) => {
     max: 10,
   });
   
-  const adapter = new PrismaNeon(pool as any);
+  const adapter = new PrismaPg(pool);
   
   return new PrismaClient({ adapter } as any);
 };
