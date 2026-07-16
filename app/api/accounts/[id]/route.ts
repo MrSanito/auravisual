@@ -11,6 +11,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify user exists first to handle database resets with stale client sessions
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+    if (!userExists) {
+      return NextResponse.json({ error: "User not found or session expired" }, { status: 401 });
+    }
+
     const { AccountName, BankName, openingBalance } = await request.json();
 
     if (!AccountName || !BankName) {
@@ -51,6 +59,14 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const userId = request.headers.get("x-user-id");
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Verify user exists first to handle database resets with stale client sessions
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+    if (!userExists) {
+      return NextResponse.json({ error: "User not found or session expired" }, { status: 401 });
     }
 
     // Verify account belongs to user

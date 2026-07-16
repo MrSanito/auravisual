@@ -40,6 +40,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify user exists first to handle database resets with stale client sessions
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+    if (!userExists) {
+      return NextResponse.json({ error: "User not found or session expired" }, { status: 401 });
+    }
+
     const { transactions } = await request.json();
 
     if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
@@ -49,6 +57,7 @@ export async function POST(request: Request) {
     // Process creation and balance adjustment in a secure transaction
     const result = await prisma.$transaction(async (tx) => {
       const importedTransactions = [];
+      const accountBalances: Record<string, number> = {};
 
       for (let i = 0; i < transactions.length; i++) {
         // Expected JSON structure: { date, type, categoryName, amountStr, mode, accountName, party, notes }
