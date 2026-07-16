@@ -79,7 +79,7 @@ export async function DELETE(
 
     // Check if category has active transactions
     const transactionCount = await prisma.transaction.count({
-      where: { categoryId: id },
+      where: { categoryId: id, isDeleted: false },
     });
 
     if (transactionCount > 0) {

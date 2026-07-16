@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     const userId = request.headers.get("x-user-id");
@@ -10,7 +12,10 @@ export async function GET(request: Request) {
 
     // Fetch transactions with full category and account details
     const transactions = await prisma.transaction.findMany({
-      where: { userId },
+      where: { 
+        userId,
+        isDeleted: false,
+      },
       include: {
         account: true,
         category: true,
@@ -77,7 +82,18 @@ export async function POST(request: Request) {
         });
       }
 
-      // 3. Create the Transaction
+      // 3. Determine if future-dated (PENDING)
+      const txDate = date ? new Date(date) : new Date();
+      // Compare without time part to see if it's strictly in the future
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const txDateMidnight = new Date(txDate);
+      txDateMidnight.setHours(0, 0, 0, 0);
+      
+      const isFuture = txDateMidnight > today;
+      const txStatus = isFuture ? "PENDING" : "COMPLETED";
+
+      // 4. Create the Transaction
       const transaction = await tx.transaction.create({
         data: {
           userId,
@@ -86,7 +102,8 @@ export async function POST(request: Request) {
           type: transactionType,
           amount: transactionAmount,
           description: consolidatedDescription,
-          createdAt: date ? new Date(date) : new Date(),
+          status: txStatus,
+          createdAt: txDate,
         },
         include: {
           account: true,
@@ -94,17 +111,22 @@ export async function POST(request: Request) {
         },
       });
 
-      // 4. Update the Account Balance
-      const balanceChange = transactionType === "INCOME" ? transactionAmount : -transactionAmount;
-      await tx.account.update({
-        where: { id: account.id },
-        data: {
-          balance: { increment: balanceChange },
-          lastUpdate: new Date(),
-        },
-      });
+      // 5. Update the Account Balance (only if COMPLETED)
+      if (txStatus === "COMPLETED") {
+        const balanceChange = transactionType === "INCOME" ? transactionAmount : -transactionAmount;
+        await tx.account.update({
+          where: { id: account.id },
+          data: {
+            balance: { increment: balanceChange },
+            lastUpdate: new Date(),
+          },
+        });
+      }
 
       return transaction;
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     });
 
     return NextResponse.json(newTransaction);

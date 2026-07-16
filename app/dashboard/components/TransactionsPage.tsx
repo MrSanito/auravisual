@@ -14,6 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { TopBar } from "./TopBar";
+import { ImportTransactionsModal } from "./ImportTransactionsModal";
 import { TypeBadge, ModeBadge, CategoryIcon, RowMenu } from "./Badge";
 import { useAuth } from "@/app/context/AuthContext";
 import {
@@ -22,7 +23,6 @@ import {
   incomeCategoryMeta,
   paymentModes,
   accounts,
-  BASE_EXPENSE_OFFSET,
   Transaction,
 } from "../data/mockData";
 
@@ -50,6 +50,7 @@ export function TransactionsPage({
   const [showAllIncomes, setShowAllIncomes] = useState(false);
   const [isAddingExpense, setIsAddingExpense] = useState(false);
   const [isAddingIncome, setIsAddingIncome] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Account creation modal state
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
@@ -69,7 +70,7 @@ export function TransactionsPage({
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
 
   const [expForm, setExpForm] = useState({
-    date: "2025-05-14",
+    date: new Date().toISOString().split("T")[0],
     category: "Food",
     amount: "",
     mode: "UPI",
@@ -78,7 +79,7 @@ export function TransactionsPage({
     notes: "",
   });
   const [incForm, setIncForm] = useState({
-    date: "2025-05-14",
+    date: new Date().toISOString().split("T")[0],
     source: "Salary",
     amount: "",
     mode: "Bank Transfer",
@@ -87,25 +88,183 @@ export function TransactionsPage({
     notes: "",
   });
 
-  const totalExpenses = BASE_EXPENSE_OFFSET + expenses.reduce((s, e) => s + e.amount, 0);
-  const totalIncome = incomes.reduce((s, e) => s + e.amount, 0);
+  // State hooks for inline editing and deletion modal
+  const [editingTxId, setEditingTxId] = useState<string | number | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    date: "",
+    category: "",
+    amount: "",
+    mode: "",
+    account: "",
+    party: "",
+    notes: "",
+  });
+  const [txToDelete, setTxToDelete] = useState<string | number | null>(null);
 
-  const activeAccounts = dbAccounts && dbAccounts.length > 0 
-    ? dbAccounts.map((a) => a.AccountName) 
-    : accounts;
+  // Helper to parse dates like "14 May 2025" to "2025-05-14"
+  const parseDateToInputFormat = (dateStr: string): string => {
+    try {
+      const parts = dateStr.split(" ");
+      if (parts.length < 3) return new Date().toISOString().split("T")[0];
+      const day = parts[0];
+      const monthName = parts[1];
+      const year = parts[2];
+      const months: Record<string, string> = {
+        Jan: "01", Feb: "02", Mar: "03", Apr: "04", May: "05", Jun: "06",
+        Jul: "07", Aug: "08", Sep: "09", Oct: "10", Nov: "11", Dec: "12"
+      };
+      const month = months[monthName] || "01";
+      return `${year}-${month}-${day.padStart(2, "0")}`;
+    } catch (e) {
+      return new Date().toISOString().split("T")[0];
+    }
+  };
 
-  // Derive active categories from dbCategories or fall back to mock metadata lists
-  const expenseCategories = dbCategories && dbCategories.length > 0
-    ? dbCategories.filter((c) => c.type === "EXPENSE").map((c) => c.name)
-    : Object.keys(expenseCategoryMeta);
+  const startEditing = (tx: Transaction) => {
+    setEditingTxId(tx.id);
+    setEditForm({
+      date: parseDateToInputFormat(tx.date),
+      category: tx.category,
+      amount: String(tx.amount),
+      mode: tx.mode,
+      account: tx.account,
+      party: tx.party,
+      notes: tx.notes === "—" ? "" : tx.notes,
+    });
+  };
 
-  const incomeCategories = dbCategories && dbCategories.length > 0
-    ? dbCategories.filter((c) => c.type === "INCOME").map((c) => c.name)
-    : Object.keys(incomeCategoryMeta);
+  const cancelEditing = () => {
+    setEditingTxId(null);
+  };
+
+  const saveEdit = async (id: string | number) => {
+    if (!user) {
+      toast.error("Unauthorized. Please log in first.");
+      return;
+    }
+
+    if (!editForm.date) {
+      toast.error("Please select a valid date.");
+      return;
+    }
+
+    if (!editForm.category) {
+      toast.error("Please select a valid category.");
+      return;
+    }
+
+    if (!editForm.account) {
+      toast.error("Please select a valid account.");
+      return;
+    }
+
+    const amountNum = Number(editForm.amount);
+    if (!editForm.amount || isNaN(amountNum) || amountNum <= 0) {
+      toast.error("Please enter a valid amount greater than zero.");
+      return;
+    }
+
+    if (!editForm.party || !editForm.party.trim()) {
+      toast.error("Please enter a valid merchant/party name.");
+      return;
+    }
+
+    setIsSavingEdit(true);
+    try {
+      const response = await fetch(`/api/transactions/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": user.id,
+        },
+        body: JSON.stringify({
+          accountName: editForm.account,
+          categoryName: editForm.category,
+          amount: editForm.amount,
+          party: editForm.party.trim(),
+          mode: editForm.mode,
+          notes: editForm.notes,
+          date: editForm.date,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("Transaction updated successfully!");
+        setEditingTxId(null);
+        if (onRefresh) onRefresh();
+      } else {
+        const err = await response.json();
+        toast.error(err.error || "Failed to update transaction");
+      }
+    } catch (err) {
+      console.error("Save transaction edit error:", err);
+      toast.error("Failed to connect to the server");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const completedExpenses = expenses.filter(e => e.status !== "PENDING");
+  const completedIncomes = incomes.filter(i => i.status !== "PENDING");
+
+  const totalExpenses = completedExpenses.reduce((s, e) => s + e.amount, 0);
+  const totalIncome = completedIncomes.reduce((s, e) => s + e.amount, 0);
+
+  const activeAccounts = React.useMemo(() => {
+    return dbAccounts && dbAccounts.length > 0 
+      ? dbAccounts.map((a) => a.AccountName) 
+      : accounts;
+  }, [dbAccounts]);
+
+  const expenseCategories = React.useMemo(() => {
+    return dbCategories && dbCategories.length > 0
+      ? dbCategories.filter((c) => c.type === "EXPENSE").map((c) => c.name)
+      : Object.keys(expenseCategoryMeta);
+  }, [dbCategories]);
+
+  const incomeCategories = React.useMemo(() => {
+    return dbCategories && dbCategories.length > 0
+      ? dbCategories.filter((c) => c.type === "INCOME").map((c) => c.name)
+      : Object.keys(incomeCategoryMeta);
+  }, [dbCategories]);
+
+  // Sync form defaults with valid options to prevent submitting hidden default values
+  React.useEffect(() => {
+    if (activeAccounts && activeAccounts.length > 0) {
+      if (!activeAccounts.includes(expForm.account)) {
+        setExpForm(prev => ({ ...prev, account: activeAccounts[0] }));
+      }
+      if (!activeAccounts.includes(incForm.account)) {
+        setIncForm(prev => ({ ...prev, account: activeAccounts[0] }));
+      }
+    }
+    
+    if (expenseCategories && expenseCategories.length > 0) {
+      if (!expenseCategories.includes(expForm.category)) {
+        setExpForm(prev => ({ ...prev, category: expenseCategories[0] }));
+      }
+    }
+    
+    if (incomeCategories && incomeCategories.length > 0) {
+      if (!incomeCategories.includes(incForm.source)) {
+        setIncForm(prev => ({ ...prev, source: incomeCategories[0] }));
+      }
+    }
+  }, [activeAccounts, expenseCategories, incomeCategories]);
 
   const submitNewCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCategoryForm.name || !user) return;
+    if (!user) {
+      toast.error("Unauthorized. Please log in first.");
+      return;
+    }
+
+    if (!newCategoryForm.name || !newCategoryForm.name.trim()) {
+      toast.error("Please enter a category name.");
+      return;
+    }
+
     setIsCreatingCategory(true);
 
     try {
@@ -116,7 +275,7 @@ export function TransactionsPage({
           "x-user-id": user.id,
         },
         body: JSON.stringify({
-          name: newCategoryForm.name,
+          name: newCategoryForm.name.trim(),
           type: newCategoryForm.type,
         }),
       });
@@ -149,7 +308,27 @@ export function TransactionsPage({
 
   const submitNewAccount = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAccountForm.name || !newAccountForm.bank || !user) return;
+    if (!user) {
+      toast.error("Unauthorized. Please log in first.");
+      return;
+    }
+
+    if (!newAccountForm.name || !newAccountForm.name.trim()) {
+      toast.error("Please enter an account name.");
+      return;
+    }
+
+    if (!newAccountForm.bank || !newAccountForm.bank.trim()) {
+      toast.error("Please enter a bank/institution name.");
+      return;
+    }
+
+    const startingBalance = Number(newAccountForm.balance);
+    if (newAccountForm.balance !== "" && (isNaN(startingBalance) || startingBalance < 0)) {
+      toast.error("Starting balance must be a non-negative number.");
+      return;
+    }
+
     setIsCreatingAccount(true);
 
     try {
@@ -160,9 +339,9 @@ export function TransactionsPage({
           "x-user-id": user.id,
         },
         body: JSON.stringify({
-          AccountName: newAccountForm.name,
-          BankName: newAccountForm.bank,
-          balance: Number(newAccountForm.balance) || 0,
+          AccountName: newAccountForm.name.trim(),
+          BankName: newAccountForm.bank.trim(),
+          balance: startingBalance || 0,
         }),
       });
 
@@ -191,7 +370,37 @@ export function TransactionsPage({
 
   const submitExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!expForm.amount || !expForm.party || !user) return;
+    if (!user) {
+      toast.error("Unauthorized. Please log in first.");
+      return;
+    }
+
+    if (!expForm.date) {
+      toast.error("Please select a valid date.");
+      return;
+    }
+
+    if (!expForm.category || expForm.category === "ADD_NEW_CATEGORY") {
+      toast.error("Please select a valid category.");
+      return;
+    }
+
+    if (!expForm.account || expForm.account === "ADD_NEW_ACCOUNT") {
+      toast.error("Please select a valid account.");
+      return;
+    }
+
+    const amountNum = Number(expForm.amount);
+    if (!expForm.amount || isNaN(amountNum) || amountNum <= 0) {
+      toast.error("Please enter a valid amount greater than zero.");
+      return;
+    }
+
+    if (!expForm.party || !expForm.party.trim()) {
+      toast.error("Please enter a valid merchant/party name.");
+      return;
+    }
+
     setIsAddingExpense(true);
     
     try {
@@ -206,7 +415,7 @@ export function TransactionsPage({
           categoryName: expForm.category,
           type: "EXPENSE",
           amount: expForm.amount,
-          party: expForm.party,
+          party: expForm.party.trim(),
           mode: expForm.mode,
           notes: expForm.notes,
           date: expForm.date,
@@ -216,7 +425,7 @@ export function TransactionsPage({
       if (response.ok) {
         toast.success("Expense added successfully!");
         setExpForm({
-          date: "2025-05-14",
+          date: new Date().toISOString().split("T")[0],
           category: "Food",
           amount: "",
           mode: "UPI",
@@ -231,6 +440,7 @@ export function TransactionsPage({
       }
     } catch (err) {
       console.error("Submit expense error:", err);
+      toast.error("Failed to connect to the server");
     } finally {
       setIsAddingExpense(false);
     }
@@ -238,7 +448,37 @@ export function TransactionsPage({
 
   const submitIncome = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!incForm.amount || !incForm.party || !user) return;
+    if (!user) {
+      toast.error("Unauthorized. Please log in first.");
+      return;
+    }
+
+    if (!incForm.date) {
+      toast.error("Please select a valid date.");
+      return;
+    }
+
+    if (!incForm.source || incForm.source === "ADD_NEW_CATEGORY") {
+      toast.error("Please select a valid category source.");
+      return;
+    }
+
+    if (!incForm.account || incForm.account === "ADD_NEW_ACCOUNT") {
+      toast.error("Please select a valid account.");
+      return;
+    }
+
+    const amountNum = Number(incForm.amount);
+    if (!incForm.amount || isNaN(amountNum) || amountNum <= 0) {
+      toast.error("Please enter a valid amount greater than zero.");
+      return;
+    }
+
+    if (!incForm.party || !incForm.party.trim()) {
+      toast.error("Please enter a valid party/payer name.");
+      return;
+    }
+
     setIsAddingIncome(true);
 
     try {
@@ -253,7 +493,7 @@ export function TransactionsPage({
           categoryName: incForm.source,
           type: "INCOME",
           amount: incForm.amount,
-          party: incForm.party,
+          party: incForm.party.trim(),
           mode: incForm.mode,
           notes: incForm.notes,
           date: incForm.date,
@@ -263,7 +503,7 @@ export function TransactionsPage({
       if (response.ok) {
         toast.success("Income added successfully!");
         setIncForm({
-          date: "2025-05-14",
+          date: new Date().toISOString().split("T")[0],
           source: "Salary",
           amount: "",
           mode: "Bank Transfer",
@@ -278,6 +518,7 @@ export function TransactionsPage({
       }
     } catch (err) {
       console.error("Submit income error:", err);
+      toast.error("Failed to connect to the server");
     } finally {
       setIsAddingIncome(false);
     }
@@ -314,7 +555,27 @@ export function TransactionsPage({
 
   return (
     <div className="p-4 md:p-8">
-      <TopBar title="Transactions" subtitle="Record your income and expenses in one place." />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <TopBar title="Transactions" subtitle="Record your income and expenses in one place." />
+        <div className="mt-4 sm:mt-0 self-start sm:self-auto">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 hover:text-gray-900"
+          >
+            <Upload size={16} /> Import Excel / CSV
+          </button>
+        </div>
+      </div>
+
+      {showImportModal && (
+        <ImportTransactionsModal
+          userId={user?.id}
+          onClose={() => setShowImportModal(false)}
+          onSuccess={() => {
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
 
       {/* Add forms */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -476,7 +737,7 @@ export function TransactionsPage({
                   />
                 </div>
                 <div>
-                  <label className={labelCls}>Source</label>
+                  <label className={labelCls}>Category</label>
                   <select
                     className={inputCls}
                     value={incForm.source}
@@ -582,7 +843,7 @@ export function TransactionsPage({
               <p className="text-lg font-bold text-red-500">{formatINR(totalExpenses)}</p>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto min-h-[180px]">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="text-xs text-gray-400">
@@ -598,27 +859,103 @@ export function TransactionsPage({
               <tbody>
                 {visibleExpenses.map((e) => {
                   const meta = expenseCategoryMeta[e.category] || expenseCategoryMeta.Others;
+                  const isEditing = editingTxId === e.id;
                   return (
                     <tr key={e.id} className="border-t border-gray-50 hover:bg-gray-50/60">
-                      <td className="whitespace-nowrap px-5 py-3 text-gray-500">{e.date}</td>
-                      <td className="px-2 py-3">
-                        <span className="flex items-center gap-2 font-medium text-gray-700">
-                          <CategoryIcon meta={meta} /> {e.category}
-                        </span>
-                      </td>
-                      <td className="px-2 py-3">
-                        <TypeBadge type={meta.type} />
-                      </td>
-                      <td className="px-2 py-3 text-gray-600">{e.party}</td>
-                      <td className="whitespace-nowrap px-2 py-3 font-semibold text-red-500">
-                        {formatINR(e.amount)}
-                      </td>
-                      <td className="px-2 py-3">
-                        <ModeBadge mode={e.mode} />
-                      </td>
-                      <td className="px-2 py-3">
-                        <RowMenu onDelete={() => handleDelete(e.id)} />
-                      </td>
+                      {isEditing ? (
+                        <>
+                          <td className="px-5 py-3">
+                            <input
+                              type="date"
+                              className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-full"
+                              value={editForm.date}
+                              onChange={(el) => setEditForm((f) => ({ ...f, date: el.target.value }))}
+                            />
+                          </td>
+                          <td className="px-2 py-3">
+                            <select
+                              className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-full"
+                              value={editForm.category}
+                              onChange={(el) => setEditForm((f) => ({ ...f, category: el.target.value }))}
+                            >
+                              {expenseCategories.map((c) => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-2 py-3">
+                            <TypeBadge type={meta.type} />
+                          </td>
+                          <td className="px-2 py-3">
+                            <input
+                              type="text"
+                              className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-full"
+                              value={editForm.party}
+                              onChange={(el) => setEditForm((f) => ({ ...f, party: el.target.value }))}
+                            />
+                          </td>
+                          <td className="px-2 py-3">
+                            <input
+                              type="number"
+                              className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-full"
+                              value={editForm.amount}
+                              onChange={(el) => setEditForm((f) => ({ ...f, amount: el.target.value }))}
+                            />
+                          </td>
+                          <td className="px-2 py-3">
+                            <select
+                              className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-full"
+                              value={editForm.mode}
+                              onChange={(el) => setEditForm((f) => ({ ...f, mode: el.target.value }))}
+                            >
+                              {paymentModes.map((m) => (
+                                <option key={m}>{m}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-2 py-3">
+                            <div className="flex gap-1.5">
+                              <button
+                                type="button"
+                                disabled={isSavingEdit}
+                                onClick={() => saveEdit(e.id)}
+                                className="rounded bg-green-600 px-2 py-1 text-xs font-semibold text-white hover:bg-green-700 shadow-sm disabled:opacity-50"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditing}
+                                className="rounded bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-500 hover:bg-gray-200"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="whitespace-nowrap px-5 py-3 text-gray-500">{e.date}</td>
+                          <td className="px-2 py-3">
+                            <span className="flex items-center gap-2 font-medium text-gray-700">
+                              <CategoryIcon meta={meta} /> {e.category}
+                            </span>
+                          </td>
+                          <td className="px-2 py-3">
+                            <TypeBadge type={meta.type} />
+                          </td>
+                          <td className="px-2 py-3 text-gray-600">{e.party}</td>
+                          <td className="whitespace-nowrap px-2 py-3 font-semibold text-red-500">
+                            {formatINR(e.amount)}
+                          </td>
+                          <td className="px-2 py-3">
+                            <ModeBadge mode={e.mode} />
+                          </td>
+                          <td className="px-2 py-3">
+                            <RowMenu onDelete={() => setTxToDelete(e.id)} onEdit={() => startEditing(e)} />
+                          </td>
+                        </>
+                      )}
                     </tr>
                   );
                 })}
@@ -647,12 +984,12 @@ export function TransactionsPage({
               <p className="text-lg font-bold text-green-600">{formatINR(totalIncome)}</p>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto min-h-[180px]">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="text-xs text-gray-400">
                   <th className="px-5 py-2 font-medium">Date</th>
-                  <th className="px-2 py-2 font-medium">Source</th>
+                  <th className="px-2 py-2 font-medium">Category</th>
                   <th className="px-2 py-2 font-medium">Type</th>
                   <th className="px-2 py-2 font-medium">Party</th>
                   <th className="px-2 py-2 font-medium">Amount</th>
@@ -663,27 +1000,103 @@ export function TransactionsPage({
               <tbody>
                 {visibleIncomes.map((inc) => {
                   const meta = incomeCategoryMeta[inc.category] || incomeCategoryMeta["Other Income"];
+                  const isEditing = editingTxId === inc.id;
                   return (
                     <tr key={inc.id} className="border-t border-gray-50 hover:bg-gray-50/60">
-                      <td className="whitespace-nowrap px-5 py-3 text-gray-500">{inc.date}</td>
-                      <td className="px-2 py-3">
-                        <span className="flex items-center gap-2 font-medium text-gray-700">
-                          <CategoryIcon meta={meta} /> {inc.category}
-                        </span>
-                      </td>
-                      <td className="px-2 py-3">
-                        <TypeBadge type={meta.type} />
-                      </td>
-                      <td className="px-2 py-3 text-gray-600">{inc.party}</td>
-                      <td className="whitespace-nowrap px-2 py-3 font-semibold text-green-600">
-                        {formatINR(inc.amount)}
-                      </td>
-                      <td className="px-2 py-3">
-                        <ModeBadge mode={inc.mode} />
-                      </td>
-                      <td className="px-2 py-3">
-                        <RowMenu onDelete={() => handleDelete(inc.id)} />
-                      </td>
+                      {isEditing ? (
+                        <>
+                          <td className="px-5 py-3">
+                            <input
+                              type="date"
+                              className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-full"
+                              value={editForm.date}
+                              onChange={(el) => setEditForm((f) => ({ ...f, date: el.target.value }))}
+                            />
+                          </td>
+                          <td className="px-2 py-3">
+                            <select
+                              className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-full"
+                              value={editForm.category}
+                              onChange={(el) => setEditForm((f) => ({ ...f, category: el.target.value }))}
+                            >
+                              {incomeCategories.map((c) => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-2 py-3">
+                            <TypeBadge type={meta.type} />
+                          </td>
+                          <td className="px-2 py-3">
+                            <input
+                              type="text"
+                              className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-full"
+                              value={editForm.party}
+                              onChange={(el) => setEditForm((f) => ({ ...f, party: el.target.value }))}
+                            />
+                          </td>
+                          <td className="px-2 py-3">
+                            <input
+                              type="number"
+                              className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-full"
+                              value={editForm.amount}
+                              onChange={(el) => setEditForm((f) => ({ ...f, amount: el.target.value }))}
+                            />
+                          </td>
+                          <td className="px-2 py-3">
+                            <select
+                              className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:border-blue-500 w-full"
+                              value={editForm.mode}
+                              onChange={(el) => setEditForm((f) => ({ ...f, mode: el.target.value }))}
+                            >
+                              {paymentModes.map((m) => (
+                                <option key={m}>{m}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-2 py-3">
+                            <div className="flex gap-1.5">
+                              <button
+                                type="button"
+                                disabled={isSavingEdit}
+                                onClick={() => saveEdit(inc.id)}
+                                className="rounded bg-green-600 px-2 py-1 text-xs font-semibold text-white hover:bg-green-700 shadow-sm disabled:opacity-50"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditing}
+                                className="rounded bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-500 hover:bg-gray-200"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="whitespace-nowrap px-5 py-3 text-gray-500">{inc.date}</td>
+                          <td className="px-2 py-3">
+                            <span className="flex items-center gap-2 font-medium text-gray-700">
+                              <CategoryIcon meta={meta} /> {inc.category}
+                            </span>
+                          </td>
+                          <td className="px-2 py-3">
+                            <TypeBadge type={meta.type} />
+                          </td>
+                          <td className="px-2 py-3 text-gray-600">{inc.party}</td>
+                          <td className="whitespace-nowrap px-2 py-3 font-semibold text-green-600">
+                            {formatINR(inc.amount)}
+                          </td>
+                          <td className="px-2 py-3">
+                            <ModeBadge mode={inc.mode} />
+                          </td>
+                          <td className="px-2 py-3">
+                            <RowMenu onDelete={() => setTxToDelete(inc.id)} onEdit={() => startEditing(inc)} />
+                          </td>
+                        </>
+                      )}
                     </tr>
                   );
                 })}
@@ -832,6 +1245,37 @@ export function TransactionsPage({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {txToDelete !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-gray-100 bg-white p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-gray-900 mb-2 font-sans">Confirm Delete</h3>
+            <p className="text-sm text-gray-500 mb-5 font-sans">
+              Are you sure you want to delete this transaction? This action will revert the account balance change and cannot be undone.
+            </p>
+            
+            <div className="flex items-center justify-end gap-2.5 font-sans">
+              <button
+                type="button"
+                onClick={() => setTxToDelete(null)}
+                className="rounded-xl px-4 py-2 text-sm font-semibold text-gray-500 hover:bg-gray-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleDelete(txToDelete);
+                  setTxToDelete(null);
+                }}
+                className="rounded-xl bg-red-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700"
+              >
+                Confirm Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     const userId = request.headers.get("x-user-id");
@@ -8,10 +10,23 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const accounts = await prisma.account.findMany({
-      where: { userId },
+    let accounts = await prisma.account.findMany({
+      where: { userId, isDeleted: false },
       orderBy: { createAt: "asc" },
     });
+
+    if (accounts.length === 0) {
+      const defaultAccount = await prisma.account.create({
+        data: {
+          userId,
+          AccountName: "Cash",
+          BankName: "Cash",
+          openingBalance: 0,
+          balance: 0,
+        }
+      });
+      accounts = [defaultAccount];
+    }
 
     return NextResponse.json(accounts);
   } catch (error: any) {
@@ -27,18 +42,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { AccountName, BankName, balance } = await request.json();
+    const { AccountName, BankName, openingBalance, balance } = await request.json();
 
     if (!AccountName || !BankName) {
       return NextResponse.json({ error: "Account Name and Bank Name are required" }, { status: 400 });
     }
+
+    const startingBalance = openingBalance !== undefined 
+      ? Number(openingBalance) 
+      : (Number(balance) || 0);
 
     const newAccount = await prisma.account.create({
       data: {
         userId,
         AccountName,
         BankName,
-        balance: Number(balance) || 0,
+        openingBalance: startingBalance,
+        balance: startingBalance,
       },
     });
 

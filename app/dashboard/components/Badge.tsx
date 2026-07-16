@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { MoreVertical, Trash2, LucideIcon } from "lucide-react";
+import { MoreVertical, Trash2, Edit, LucideIcon } from "lucide-react";
 import { CategoryMetaItem } from "../data/mockData";
 
 interface BadgeProps {
@@ -48,7 +48,7 @@ export function CategoryIcon({ meta }: { meta: CategoryMetaItem | { icon: Lucide
   );
 }
 
-export function RowMenu({ onDelete }: { onDelete: () => void }) {
+export function RowMenu({ onDelete, onEdit }: { onDelete: () => void; onEdit?: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
@@ -63,6 +63,18 @@ export function RowMenu({ onDelete }: { onDelete: () => void }) {
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute right-0 z-20 mt-1 w-32 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+            {onEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  onEdit();
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 border-b border-gray-100"
+              >
+                <Edit size={13} className="text-gray-500" /> Edit
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {

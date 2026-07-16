@@ -57,16 +57,18 @@ let _id = 1000;
 export const nextId = () => _id++;
 
 export interface Transaction {
-  id: number;
+  id: number | string;
   day: number;
   date: string;
-  category: string;
+  category: string | any;
   party: string;
   amount: number;
   mode: string;
   account: string;
   notes: string;
   kind?: string;
+  status?: string;
+  createdAt?: string;
 }
 
 export const initialExpenses: Transaction[] = [

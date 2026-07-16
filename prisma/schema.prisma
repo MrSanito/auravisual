@@ -12,6 +12,11 @@ enum TransactionType {
   EXPENSE
 }
 
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+}
+
 model User {
   id String @id @default(cuid())
   name String 
@@ -24,6 +29,7 @@ model User {
   accounts     Account[]  //user can have many accounts 1 to n
   categories   Category[]  //  user can create many categories 1 to n 
   transactions Transaction[]  // user ccan have many transancation 1 to n 
+  budgets      Budget[]
 createdAt    DateTime      @default(now()) 
 }
 
@@ -34,11 +40,13 @@ model Account{
   user      User     @relation(fields: [userId], references: [id])
   AccountName String    
   BankName String
-    balance   Decimal  @default(0)
+  openingBalance Decimal  @default(0)
+  balance   Decimal  @default(0)
 
 
   lastUpdate DateTime @default(now())
   createAt   DateTime @default(now())
+  isDeleted  Boolean  @default(false)
 
 
 
@@ -54,6 +62,7 @@ model Category {
   type    TransactionType
 
   transactions Transaction[]
+  budgets      Budget[]
 }
 
 
@@ -73,6 +82,21 @@ model Transaction {
 
   amount      Decimal
   description String?
+  isDeleted   Boolean          @default(false)
+  status      TransactionStatus @default(COMPLETED)
 
   createdAt   DateTime @default(now())
+}
+
+model Budget {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  limit      Decimal
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, categoryId])
 }

@@ -43,21 +43,10 @@ export async function POST(request: Request) {
         data: [
           {
             userId: newUser.id,
-            AccountName: "HDFC Bank",
-            BankName: "HDFC",
-            balance: 60000, // Matching some of our initial mock data
-          },
-          {
-            userId: newUser.id,
-            AccountName: "ICICI Bank",
-            BankName: "ICICI",
-            balance: 15000,
-          },
-          {
-            userId: newUser.id,
-            AccountName: "Cash Wallet",
+            AccountName: "Cash",
             BankName: "Cash",
-            balance: 2500,
+            balance: 0,
+            openingBalance: 0,
           },
         ],
       });

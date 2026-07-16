@@ -8,6 +8,8 @@ import { TransactionsPage } from "@/app/dashboard/components/TransactionsPage";
 import { ReportsPage } from "@/app/dashboard/components/ReportsPage";
 import { BudgetPlannerPage } from "@/app/dashboard/components/BudgetPlannerPage";
 import { CategoryAuditPage } from "@/app/dashboard/components/CategoryAuditPage";
+import { BudgetsPage } from "@/app/dashboard/components/BudgetsPage";
+import { AccountsPage } from "@/app/dashboard/components/AccountsPage";
 import { Transaction } from "@/app/dashboard/data/mockData";
 import { Loader2, Menu, TrendingUp } from "lucide-react";
 
@@ -53,7 +55,9 @@ function mapDbTransactionToFrontend(dbTx: any): Transaction {
     mode,
     account: dbTx.account?.AccountName || "Cash Wallet",
     notes: notes || "—",
-    kind: dbTx.type === "INCOME" ? "income" : "expense"
+    kind: dbTx.type === "INCOME" ? "income" : "expense",
+    status: dbTx.status,
+    createdAt: dbTx.createdAt
   };
 }
 
@@ -67,6 +71,7 @@ export default function FinTrackerDashboard() {
   const [incomes, setIncomes] = useState<Transaction[]>([]);
   const [dbAccounts, setDbAccounts] = useState<any[]>([]);
   const [dbCategories, setDbCategories] = useState<any[]>([]);
+  const [dbBudgets, setDbBudgets] = useState<any[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   // Client-side authentication guard
@@ -79,7 +84,7 @@ export default function FinTrackerDashboard() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      const [accountsRes, transactionsRes, categoriesRes] = await Promise.all([
+      const [accountsRes, transactionsRes, categoriesRes, budgetsRes] = await Promise.all([
         fetch("/api/accounts", {
           headers: { "x-user-id": user.id }
         }),
@@ -88,19 +93,24 @@ export default function FinTrackerDashboard() {
         }),
         fetch("/api/categories", {
           headers: { "x-user-id": user.id }
+        }),
+        fetch("/api/budgets", {
+          headers: { "x-user-id": user.id }
         })
       ]);
       
-      if (!accountsRes.ok || !transactionsRes.ok || !categoriesRes.ok) {
+      if (!accountsRes.ok || !transactionsRes.ok || !categoriesRes.ok || !budgetsRes.ok) {
         throw new Error("Failed to load dashboard data");
       }
       
       const accountsData = await accountsRes.json();
       const transactionsData = await transactionsRes.json();
       const categoriesData = await categoriesRes.json();
+      const budgetsData = await budgetsRes.json();
       
       setDbAccounts(accountsData);
       setDbCategories(categoriesData);
+      setDbBudgets(budgetsData);
       
       // Map transactions to frontend format
       const mapped = transactionsData.map(mapDbTransactionToFrontend);
@@ -172,14 +182,36 @@ export default function FinTrackerDashboard() {
           />
         )}
         {page === "reports" && (
-          <ReportsPage expenses={expenses} incomes={incomes} dbAccounts={dbAccounts} />
+          <ReportsPage
+            expenses={expenses}
+            incomes={incomes}
+            dbAccounts={dbAccounts}
+            dbCategories={dbCategories}
+            onRefresh={fetchData}
+          />
         )}
         {page === "budget" && (
           <BudgetPlannerPage
             expenses={expenses}
             incomes={incomes}
             dbAccounts={dbAccounts}
+            dbBudgets={dbBudgets}
             onNavigate={setPage}
+            onRefresh={fetchData}
+          />
+        )}
+        {page === "budgets" && (
+          <BudgetsPage
+            expenses={expenses}
+            dbCategories={dbCategories}
+            dbBudgets={dbBudgets}
+            onRefresh={fetchData}
+          />
+        )}
+        {page === "accounts" && (
+          <AccountsPage
+            dbAccounts={dbAccounts}
+            onRefresh={fetchData}
           />
         )}
         {page === "audit" && (

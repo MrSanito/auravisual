@@ -9,6 +9,8 @@ import {
   FileBarChart,
   LogOut,
   User as UserIcon,
+  PiggyBank,
+  Landmark,
 } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
 
@@ -24,6 +26,8 @@ export function Sidebar({ page, onNavigate, isOpen = false, onClose }: SidebarPr
 
   const navItems = [
     { key: "budget", label: "Budget Planner", icon: PieIcon },
+    { key: "budgets", label: "Set Budgets", icon: PiggyBank },
+    { key: "accounts", label: "Accounts", icon: Landmark },
     { key: "transactions", label: "Transactions", icon: ArrowLeftRight },
     { key: "audit", label: "Category Audit", icon: BarChart3 },
     { key: "reports", label: "Reports", icon: FileBarChart },
