@@ -285,7 +285,9 @@ export function BudgetPlannerPage({
                   </tr>
                 ) : (
                   variableRows.map((v) => {
-                  const pct = Math.round((v.spent / v.budget) * 100);
+                  const pct = v.budget > 0 
+                    ? Math.round((v.spent / v.budget) * 100) 
+                    : (v.spent > 0 ? 100 : 0);
                   return (
                     <tr key={v.id} className="border-t border-gray-50">
                       <td className="px-5 py-3 font-medium text-gray-700">{v.category}</td>
