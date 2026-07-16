@@ -62,7 +62,7 @@ function mapDbTransactionToFrontend(dbTx: any): Transaction {
 }
 
 export default function FinTrackerDashboard() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const router = useRouter();
 
   const [page, setPage] = useState("transactions");
@@ -100,6 +100,16 @@ export default function FinTrackerDashboard() {
       ]);
       
       if (!accountsRes.ok || !transactionsRes.ok || !categoriesRes.ok || !budgetsRes.ok) {
+        if (
+          accountsRes.status === 401 ||
+          transactionsRes.status === 401 ||
+          categoriesRes.status === 401 ||
+          budgetsRes.status === 401
+        ) {
+          logout();
+          router.push("/login");
+          return;
+        }
         throw new Error("Failed to load dashboard data");
       }
       

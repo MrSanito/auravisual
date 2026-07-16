@@ -10,6 +10,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify user exists first to handle database resets with stale client sessions
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+    if (!userExists) {
+      return NextResponse.json({ error: "User not found or session expired" }, { status: 401 });
+    }
+
     let accounts = await prisma.account.findMany({
       where: { userId, isDeleted: false },
       orderBy: { createAt: "asc" },
@@ -40,6 +48,14 @@ export async function POST(request: Request) {
     const userId = request.headers.get("x-user-id");
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Verify user exists first to handle database resets with stale client sessions
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+    if (!userExists) {
+      return NextResponse.json({ error: "User not found or session expired" }, { status: 401 });
     }
 
     const { AccountName, BankName, openingBalance, balance } = await request.json();
