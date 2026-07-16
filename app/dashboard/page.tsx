@@ -11,7 +11,7 @@ import { CategoryAuditPage } from "@/app/dashboard/components/CategoryAuditPage"
 import { BudgetsPage } from "@/app/dashboard/components/BudgetsPage";
 import { AccountsPage } from "@/app/dashboard/components/AccountsPage";
 import { Transaction } from "@/app/dashboard/data/mockData";
-import { Loader2, Menu, TrendingUp } from "lucide-react";
+import { Loader2, Menu, TrendingUp, LogOut } from "lucide-react";
 
 // Mappings helper to convert database format back to frontend Transaction representation
 function mapDbTransactionToFrontend(dbTx: any): Transaction {
@@ -164,13 +164,23 @@ export default function FinTrackerDashboard() {
           </span>
           <span className="text-base font-bold text-gray-900">Fin Tracker</span>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsSidebarOpen(true)}
-          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 focus:outline-none"
-        >
-          <Menu size={20} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={logout}
+            className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 focus:outline-none"
+            title="Sign Out"
+          >
+            <LogOut size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 focus:outline-none"
+          >
+            <Menu size={20} />
+          </button>
+        </div>
       </header>
 
       <Sidebar 
